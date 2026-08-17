@@ -17,19 +17,22 @@ jobs:
         echo "Using $FILE"
         if [[ $FILE == *.gz ]]; then gunzip -c "$FILE" > boot.img; else cp "$FILE" boot.img; fi
         abootimg --info boot.img || true
-        mkdir -p ramdisk
+        mkdir -p ramdisk/unpack
         cd ramdisk
-        abootimg -x ../boot.img
-        mkdir -p unpack && cd unpack
-        cat ../initrd.img | gunzip -c | cpio -i || cat ../initrd.img | cpio -i || true
+        abootimg -x ../boot.img || true
+        cd unpack
+        if [ -f ../initrd.img ]; then cat ../initrd.img | gunzip -c | cpio -i 2>/dev/null || cat ../initrd.img | cpio -i 2>/dev/null || true; fi
         ls -lh
         cd ../..
-    - name: Generate tree with patch
+    - name: Generate tree
       run: |
         PYFILE=$(python3 -c "import sebaubuntu_libs.libandroid.device_info, inspect; print(inspect.getfile(sebaubuntu_libs.libandroid.device_info))")
-        sed -i "s/DEVICE_CODENAME = .*/DEVICE_CODENAME = ['ro.build.product', 'ro.product.device', 'ro.product.vendor.device', 'ro.product.system.device']/" "$PYFILE" || true
-        python3 -m twrpdtgen boot.img --output device || true
+        sed -i "s/DEVICE_CODENAME = .*/DEVICE_CODENAME = ['ro.build.product', 'ro.product.device', 'ro.product.vendor.device', 'ro.product.system.device', 'ro.product.name']/" "$PYFILE" || true
+        cat "$PYFILE"
+        python3 -m twrpdtgen boot.img --output device || python3 -m twrpdtgen boot.img --output device --extra || true
         ls -R device || true
+        # fallback manual BoardConfig if failed
+        if [ ! -f device/BoardConfig.mk ]; then mkdir -p device/Infinix/KE7; echo "DEVICE_PATH := device/Infinix/KE7" > device/BoardConfig.mk; echo "TARGET_ARCH := arm64" >> device/BoardConfig.mk; fi
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
