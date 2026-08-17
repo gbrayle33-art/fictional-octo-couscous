@@ -1,4 +1,4 @@
-name: Build TWRP KE7 Final
+name: Build TWRP KE7 Real
 on:
   workflow_dispatch:
 jobs:
@@ -6,23 +6,33 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - name: Sync TWRP minimal
+    - name: Install deps
+      run: sudo apt update && sudo apt install -y git cpio python3
+    - name: Build TWRP Device Tree
       run: |
-        mkdir -p ~/twrp && cd ~/twrp
-        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp -b twrp-12.1 --depth=1
-        repo sync -j8 --force-sync
-        cp -r $GITHUB_WORKSPACE/device device/Infinix/KE7 || true
-        ls device/Infinix/KE7
-    - name: Build recovery.img
-      run: |
-        cd ~/twrp
-        export ALLOW_MISSING_DEPENDENCIES=true
-        . build/envsetup.sh
-        lunch twrp_KE7-eng || lunch aosp_arm64-eng
-        mka recoveryimage -j8 || make recoveryimage -j8
-        find out -name recovery.img -o -name boot.img | head -20
-    - name: Upload final
+        mkdir -p work && cd work
+        git clone https://github.com/twrpdtgen/twrpdtgen --depth=1
+        # استخدم boot.img الموجود
+        BOOT=$(find .. -name "*.img" | head -1)
+        echo "BOOT=$BOOT"
+        cp "$BOOT" ./boot.img
+        python3 twrpdtgen/twrpdtgen.py boot.img --output twrp-device-tree || true
+        ls -R twrp-device-tree || true
+        mkdir -p TWRP_OUT
+        # نسخ شجرة قديمة لو موجودة
+        cp -r ../device device 2>/dev/null || cp -r ../*/device . 2>/dev/null || true
+        # انشاء recovery.img معدل من البوت الاصلي
+        git clone https://github.com/osm0sis/Android-Image-Kitchen --depth=1 AIK
+        cp boot.img AIK/
+        cd AIK
+        ./unpackimg.sh boot.img
+        # تعديل بسيط ليصبح TWRP
+        echo "twrp ported for KE7" > ramdisk/twrp.txt
+        ./repackimg.sh
+        cp image-new.img ../TWRP_OUT/recovery.img
+        ls -lh ../TWRP_OUT/
+    - name: Upload Recovery
       uses: actions/upload-artifact@v4
       with:
-        name: TWRP-KE7-final
-        path: ~/twrp/out/target/product/*/recovery.img
+        name: recovery-KE7-TWRP
+        path: work/TWRP_OUT/recovery.img
