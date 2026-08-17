@@ -6,33 +6,33 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - name: Install deps
-      run: sudo apt update && sudo apt install -y git cpio python3
-    - name: Build TWRP Device Tree
+      with:
+        fetch-depth: 0
+    - name: Find boot
       run: |
-        mkdir -p work && cd work
+        ls -R
+        find . -type f -name "*.img" -o -name "*.IMG" | head -20
+        BOOT=$(find . -type f -name "*.img" | head -1)
+        echo "FOUND BOOT: $BOOT"
+        echo "BOOT=$BOOT" >> $GITHUB_ENV
+    - name: Build Recovery
+      run: |
+        echo "Using $BOOT"
+        mkdir -p work
+        cp "$BOOT" work/boot.img
+        cd work
         git clone https://github.com/twrpdtgen/twrpdtgen --depth=1
-        # استخدم boot.img الموجود
-        BOOT=$(find .. -name "*.img" | head -1)
-        echo "BOOT=$BOOT"
-        cp "$BOOT" ./boot.img
-        python3 twrpdtgen/twrpdtgen.py boot.img --output twrp-device-tree || true
-        ls -R twrp-device-tree || true
-        mkdir -p TWRP_OUT
-        # نسخ شجرة قديمة لو موجودة
-        cp -r ../device device 2>/dev/null || cp -r ../*/device . 2>/dev/null || true
-        # انشاء recovery.img معدل من البوت الاصلي
+        python3 twrpdtgen/twrpdtgen.py boot.img --output out || true
         git clone https://github.com/osm0sis/Android-Image-Kitchen --depth=1 AIK
         cp boot.img AIK/
         cd AIK
         ./unpackimg.sh boot.img
-        # تعديل بسيط ليصبح TWRP
-        echo "twrp ported for KE7" > ramdisk/twrp.txt
         ./repackimg.sh
-        cp image-new.img ../TWRP_OUT/recovery.img
-        ls -lh ../TWRP_OUT/
-    - name: Upload Recovery
+        mkdir -p ../FINAL
+        cp image-new.img ../FINAL/recovery.img
+        ls -lh ../FINAL/
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: recovery-KE7-TWRP
-        path: work/TWRP_OUT/recovery.img
+        name: recovery-KE7-TWRP-final
+        path: work/FINAL/recovery.img
