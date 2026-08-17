@@ -9,17 +9,32 @@ jobs:
     - name: Install deps
       run: |
         sudo apt update
-        sudo apt install -y cpio git python3-pip
+        sudo apt install -y cpio git python3-pip abootimg
         pip3 install twrpdtgen
     - name: Prepare boot
       run: |
-        gunzip -c boot_KE7_V472.img.gz > boot.img || cp boot_KE7_V472.img boot.img || cp boot_KE7_V472.im* boot.img
-        ls -lh boot.img
-    - name: Generate tree
+        FILE=$(ls boot* | head -1)
+        echo "Using $FILE"
+        if [[ $FILE == *.gz ]]; then gunzip -c "$FILE" > boot.img; else cp "$FILE" boot.img; fi
+        abootimg --info boot.img || true
+        mkdir -p ramdisk
+        cd ramdisk
+        abootimg -x ../boot.img
+        mkdir -p unpack && cd unpack
+        cat ../initrd.img | gunzip -c | cpio -i || cat ../initrd.img | cpio -i || true
+        ls -lh
+        cd ../..
+    - name: Generate tree with patch
       run: |
-        python3 -m twrpdtgen boot.img --output device
+        PYFILE=$(python3 -c "import sebaubuntu_libs.libandroid.device_info, inspect; print(inspect.getfile(sebaubuntu_libs.libandroid.device_info))")
+        sed -i "s/DEVICE_CODENAME = .*/DEVICE_CODENAME = ['ro.build.product', 'ro.product.device', 'ro.product.vendor.device', 'ro.product.system.device']/" "$PYFILE" || true
+        python3 -m twrpdtgen boot.img --output device || true
+        ls -R device || true
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: KE7-tree
-        path: device
+        path: |
+          device
+          ramdisk
+          boot.img
