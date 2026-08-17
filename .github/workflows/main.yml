@@ -1,4 +1,4 @@
-name: Build TWRP for KE7
+name: Build TWRP KE7 Final
 on:
   workflow_dispatch:
 jobs:
@@ -6,38 +6,23 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - name: Install deps
+    - name: Sync TWRP minimal
       run: |
-        sudo apt update
-        sudo apt install -y cpio git python3-pip abootimg
-        pip3 install twrpdtgen
-    - name: Prepare boot
+        mkdir -p ~/twrp && cd ~/twrp
+        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp -b twrp-12.1 --depth=1
+        repo sync -j8 --force-sync
+        cp -r $GITHUB_WORKSPACE/device device/Infinix/KE7 || true
+        ls device/Infinix/KE7
+    - name: Build recovery.img
       run: |
-        FILE=$(ls boot* | head -1)
-        echo "Using $FILE"
-        if [[ $FILE == *.gz ]]; then gunzip -c "$FILE" > boot.img; else cp "$FILE" boot.img; fi
-        abootimg --info boot.img || true
-        mkdir -p ramdisk/unpack
-        cd ramdisk
-        abootimg -x ../boot.img || true
-        cd unpack
-        if [ -f ../initrd.img ]; then cat ../initrd.img | gunzip -c | cpio -i 2>/dev/null || cat ../initrd.img | cpio -i 2>/dev/null || true; fi
-        ls -lh
-        cd ../..
-    - name: Generate tree
-      run: |
-        PYFILE=$(python3 -c "import sebaubuntu_libs.libandroid.device_info, inspect; print(inspect.getfile(sebaubuntu_libs.libandroid.device_info))")
-        sed -i "s/DEVICE_CODENAME = .*/DEVICE_CODENAME = ['ro.build.product', 'ro.product.device', 'ro.product.vendor.device', 'ro.product.system.device', 'ro.product.name']/" "$PYFILE" || true
-        cat "$PYFILE"
-        python3 -m twrpdtgen boot.img --output device || python3 -m twrpdtgen boot.img --output device --extra || true
-        ls -R device || true
-        # fallback manual BoardConfig if failed
-        if [ ! -f device/BoardConfig.mk ]; then mkdir -p device/Infinix/KE7; echo "DEVICE_PATH := device/Infinix/KE7" > device/BoardConfig.mk; echo "TARGET_ARCH := arm64" >> device/BoardConfig.mk; fi
-    - name: Upload
+        cd ~/twrp
+        export ALLOW_MISSING_DEPENDENCIES=true
+        . build/envsetup.sh
+        lunch twrp_KE7-eng || lunch aosp_arm64-eng
+        mka recoveryimage -j8 || make recoveryimage -j8
+        find out -name recovery.img -o -name boot.img | head -20
+    - name: Upload final
       uses: actions/upload-artifact@v4
       with:
-        name: KE7-tree
-        path: |
-          device
-          ramdisk
-          boot.img
+        name: TWRP-KE7-final
+        path: ~/twrp/out/target/product/*/recovery.img
