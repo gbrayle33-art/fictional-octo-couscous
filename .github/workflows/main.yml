@@ -1,0 +1,25 @@
+name: Build TWRP for KE7
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install deps
+      run: |
+        sudo apt update
+        sudo apt install -y cpio git python3-pip
+        pip3 install twrpdtgen
+    - name: Prepare boot
+      run: |
+        gunzip -c boot_KE7_V472.img.gz > boot.img || cp boot_KE7_V472.img boot.img || cp boot_KE7_V472.im* boot.img
+        ls -lh boot.img
+    - name: Generate tree
+      run: |
+        python3 -m twrpdtgen boot.img --output device
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: KE7-tree
+        path: device
