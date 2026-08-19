@@ -5,30 +5,33 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install repo tool
+      - name: Install repo
         run: |
           mkdir -p ~/.bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
           chmod a+x ~/.bin/repo
           echo "$HOME/.bin" >> $GITHUB_PATH
-          sudo apt update
-          sudo apt install -y git python3
 
-      - name: Build TWRP
+      - name: Build
         run: |
           mkdir ~/twrp && cd ~/twrp
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
-          repo sync -j2 --force-sync
-          # انسخ شجرة KE7 بتاعتك
-          mkdir -p device/infinix/KE7
-          cp -r $GITHUB_WORKSPACE/* device/infinix/KE7/ || true
+          repo sync -j2
+          
+          # لو لقي الـ zip يفكه اوتوماتيك
+          if [ -f "$GITHUB_WORKSPACE/KE7-tree.zip" ]; then
+            unzip -o $GITHUB_WORKSPACE/KE7-tree.zip -d /tmp/ke7
+            mkdir -p device/infinix/KE7
+            cp -r /tmp/ke7/* device/infinix/KE7/ 2>/dev/null || cp -r /tmp/ke7/device/infinix/KE7/* device/infinix/KE7/
+          else
+            cp -r $GITHUB_WORKSPACE/* device/infinix/KE7/ || true
+          fi
+          
           . build/envsetup.sh
-          lunch twrp_KE7-eng
+          lunch twrp_KE7-eng || lunch omni_KE7-eng
           mka recoveryimage -j4
 
-      - name: Upload recovery
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: recovery-KE7-V472
           path: ~/twrp/out/target/product/KE7/recovery.img
