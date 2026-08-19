@@ -1,47 +1,42 @@
-name: Build TWRP V472 Final
+name: Build TWRP KE7 V472
 on: [workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install repo
+
+      - name: Build
         run: |
+          sudo apt install -y unzip
           mkdir -p ~/.bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
           chmod a+x ~/.bin/repo
           echo "$HOME/.bin" >> $GITHUB_PATH
-          sudo apt install -y unzip
-
-      - name: Build
-        run: |
-          echo "=== ايه اللي موجود في الريبو؟ ==="
-          ls -la $GITHUB_WORKSPACE/
-          find $GITHUB_WORKSPACE -maxdepth 4 -name "*.mk" | head -20
 
           mkdir ~/twrp && cd ~/twrp
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
           repo sync -j2 --force-sync
 
-          echo "=== بندور على BoardConfig.mk ==="
-          BOARD=$(find $GITHUB_WORKSPACE -name "BoardConfig.mk" | head -1)
-          if [ -z "$BOARD" ]; then
-            # جرب يفك اي zip
-            for z in $GITHUB_WORKSPACE/*.zip $GITHUB_WORKSPACE/**/*.zip; do
-              [ -f "$z" ] && unzip -o "$z" -d /tmp/ke7
-            done
-            BOARD=$(find /tmp/ke7 $GITHUB_WORKSPACE -name "BoardConfig.mk" | head -1)
+          echo "=== فك ملفك KE7-tree.zip ==="
+          ls -lh $GITHUB_WORKSPACE/KE7-tree.zip
+          rm -rf /tmp/ke7 && mkdir /tmp/ke7
+          unzip -o $GITHUB_WORKSPACE/KE7-tree.zip -d /tmp/ke7
+          find /tmp/ke7 -type f | head -20
+
+          DEV_DIR=$(find /tmp/ke7 -name "BoardConfig.mk" | head -1 | xargs dirname)
+          echo "DEV_DIR=$DEV_DIR"
+          
+          rm -rf device/infinix/KE7
+          mkdir -p device/infinix/KE7
+          cp -r $DEV_DIR/* device/infinix/KE7/
+          
+          # اصلاح الـ theme اللي كان موقفك عند 99%
+          if ! grep -q "TW_THEME" device/infinix/KE7/BoardConfig.mk; then
+            echo "TW_THEME := portrait_hdpi" >> device/infinix/KE7/BoardConfig.mk
           fi
           
-          echo "لقيناه في: $BOARD"
-          DEV_DIR=$(dirname "$BOARD")
-          mkdir -p ~/twrp/device/infinix/KE7
-          cp -rv $DEV_DIR/* ~/twrp/device/infinix/KE7/
-          
-          echo "=== اصلاح الـ Theme ==="
-          grep -q "TW_THEME" ~/twrp/device/infinix/KE7/BoardConfig.mk || echo "TW_THEME := portrait_hdpi" >> ~/twrp/device/infinix/KE7/BoardConfig.mk
-          
-          ls ~/twrp/device/infinix/KE7/
+          ls device/infinix/KE7/
 
           . build/envsetup.sh
           lunch twrp_KE7-eng
@@ -49,5 +44,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: recovery-KE7-V472-FINAL
+          name: recovery-KE7-V472-FIXED
           path: ~/twrp/out/target/product/KE7/recovery.img
