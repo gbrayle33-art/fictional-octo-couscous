@@ -11,24 +11,31 @@ jobs:
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
           chmod a+x ~/.bin/repo
           echo "$HOME/.bin" >> $GITHUB_PATH
+          sudo apt install -y unzip
 
       - name: Build
         run: |
           mkdir ~/twrp && cd ~/twrp
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
-          repo sync -j2
+          repo sync -j2 --force-sync
           
-          # لو لقي الـ zip يفكه اوتوماتيك
-          if [ -f "$GITHUB_WORKSPACE/KE7-tree.zip" ]; then
-            unzip -o $GITHUB_WORKSPACE/KE7-tree.zip -d /tmp/ke7
-            mkdir -p device/infinix/KE7
-            cp -r /tmp/ke7/* device/infinix/KE7/ 2>/dev/null || cp -r /tmp/ke7/device/infinix/KE7/* device/infinix/KE7/
-          else
-            cp -r $GITHUB_WORKSPACE/* device/infinix/KE7/ || true
-          fi
+          echo "=== فك الـ tree ==="
+          rm -rf /tmp/ke7 && mkdir /tmp/ke7
+          unzip -o $GITHUB_WORKSPACE/KE7-tree.zip -d /tmp/ke7 || unzip -o $GITHUB_WORKSPACE/*.zip -d /tmp/ke7
+          
+          echo "=== ملفات الـ tree ==="
+          find /tmp/ke7 -type f -name "*.mk" | head -20
+          
+          echo "=== بننسخ ==="
+          DEV_DIR=$(find /tmp/ke7 -name "BoardConfig.mk" | head -1 | xargs dirname)
+          echo "لقينا الجهاز في: $DEV_DIR"
+          mkdir -p ~/twrp/device/infinix/KE7
+          cp -r $DEV_DIR/* ~/twrp/device/infinix/KE7/
+          
+          ls ~/twrp/device/infinix/KE7/
           
           . build/envsetup.sh
-          lunch twrp_KE7-eng || lunch omni_KE7-eng
+          lunch twrp_KE7-eng || lunch omni_KE7-eng || true
           mka recoveryimage -j4
 
       - uses: actions/upload-artifact@v4
