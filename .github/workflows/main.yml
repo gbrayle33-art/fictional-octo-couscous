@@ -5,40 +5,49 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
       - name: Install repo tool
         run: |
           mkdir -p ~/.bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
           chmod a+x ~/.bin/repo
           echo "$HOME/.bin" >> $GITHUB_PATH
-
       - name: Build TWRP
         run: |
           export PATH="$HOME/.bin:$PATH"
           sudo apt install -y unzip
-          
           mkdir ~/twrp && cd ~/twrp
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
           repo sync -j2 --force-sync
-
-          echo "=== فك ملفك ==="
+          
           rm -rf /tmp/ke7 && mkdir /tmp/ke7
           unzip -o $GITHUB_WORKSPACE/KE7-tree.zip -d /tmp/ke7
           DEV_DIR=$(find /tmp/ke7 -name "BoardConfig.mk" | head -1 | xargs dirname)
-          echo "DEV_DIR=$DEV_DIR"
           
           rm -rf device/infinix/KE7
           mkdir -p device/infinix/KE7
           cp -r $DEV_DIR/* device/infinix/KE7/
           
+          echo "=== الملفات اللي عندك ==="
+          ls device/infinix/KE7/
+          
+          # لو الملف اسمه omni بدل twrp ننسخه
+          if [ -f device/infinix/KE7/omni_KE7.mk ] && [ ! -f device/infinix/KE7/twrp_KE7.mk ]; then
+            cp device/infinix/KE7/omni_KE7.mk device/infinix/KE7/twrp_KE7.mk
+          fi
+          # نعمل AndroidProducts.mk بالعافية
+          echo 'PRODUCT_MAKEFILES := $(LOCAL_DIR)/twrp_KE7.mk
+          COMMON_LUNCH_CHOICES := twrp_KE7-eng' > device/infinix/KE7/AndroidProducts.mk
+          
           grep -q "TW_THEME" device/infinix/KE7/BoardConfig.mk || echo "TW_THEME := portrait_hdpi" >> device/infinix/KE7/BoardConfig.mk
           
+          cat device/infinix/KE7/twrp_KE7.mk
+          cat device/infinix/KE7/AndroidProducts.mk
+
           . build/envsetup.sh
           lunch twrp_KE7-eng
           mka recoveryimage -j4
 
       - uses: actions/upload-artifact@v4
         with:
-          name: recovery-KE7-V472-FIXED
+          name: recovery-KE7-V472
           path: ~/twrp/out/target/product/KE7/recovery.img
