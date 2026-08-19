@@ -5,17 +5,30 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+      
+      - name: Install repo tool
         run: |
-          sudo apt update && sudo apt install -y git
+          mkdir -p ~/.bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+          chmod a+x ~/.bin/repo
+          echo "$HOME/.bin" >> $GITHUB_PATH
+          sudo apt update
+          sudo apt install -y git python3
+
+      - name: Build TWRP
+        run: |
           mkdir ~/twrp && cd ~/twrp
           repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
-          repo sync -j4
-          cp -r $GITHUB_WORKSPACE/* device/infinix/KE7/
+          repo sync -j2 --force-sync
+          # انسخ شجرة KE7 بتاعتك
+          mkdir -p device/infinix/KE7
+          cp -r $GITHUB_WORKSPACE/* device/infinix/KE7/ || true
           . build/envsetup.sh
           lunch twrp_KE7-eng
-          mka recoveryimage
-      - uses: actions/upload-artifact@v4
+          mka recoveryimage -j4
+
+      - name: Upload recovery
+        uses: actions/upload-artifact@v4
         with:
-          name: recovery-V472
+          name: recovery-KE7-V472
           path: ~/twrp/out/target/product/KE7/recovery.img
