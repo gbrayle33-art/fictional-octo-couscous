@@ -1,38 +1,21 @@
-name: Build TWRP KE7 Real
-on:
-  workflow_dispatch:
+name: Build TWRP V472
+on: [workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Find boot
-      run: |
-        ls -R
-        find . -type f -name "*.img" -o -name "*.IMG" | head -20
-        BOOT=$(find . -type f -name "*.img" | head -1)
-        echo "FOUND BOOT: $BOOT"
-        echo "BOOT=$BOOT" >> $GITHUB_ENV
-    - name: Build Recovery
-      run: |
-        echo "Using $BOOT"
-        mkdir -p work
-        cp "$BOOT" work/boot.img
-        cd work
-        git clone https://github.com/twrpdtgen/twrpdtgen --depth=1
-        python3 twrpdtgen/twrpdtgen.py boot.img --output out || true
-        git clone https://github.com/osm0sis/Android-Image-Kitchen --depth=1 AIK
-        cp boot.img AIK/
-        cd AIK
-        ./unpackimg.sh boot.img
-        ./repackimg.sh
-        mkdir -p ../FINAL
-        cp image-new.img ../FINAL/recovery.img
-        ls -lh ../FINAL/
-    - name: Upload
-      uses: actions/upload-artifact@v4
-      with:
-        name: recovery-KE7-TWRP-final
-        path: work/FINAL/recovery.img
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          sudo apt update && sudo apt install -y git
+          mkdir ~/twrp && cd ~/twrp
+          repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-12.1 --depth=1
+          repo sync -j4
+          cp -r $GITHUB_WORKSPACE/* device/infinix/KE7/
+          . build/envsetup.sh
+          lunch twrp_KE7-eng
+          mka recoveryimage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recovery-V472
+          path: ~/twrp/out/target/product/KE7/recovery.img
