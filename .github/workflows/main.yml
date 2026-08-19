@@ -22,26 +22,40 @@ jobs:
           rm -rf /tmp/ke7 && mkdir /tmp/ke7
           unzip -o $GITHUB_WORKSPACE/KE7-tree.zip -d /tmp/ke7
           DEV_DIR=$(find /tmp/ke7 -name "BoardConfig.mk" | head -1 | xargs dirname)
-          
           rm -rf device/infinix/KE7
           mkdir -p device/infinix/KE7
-          cp -r $DEV_DIR/* device/infinix/KE7/
+          cp -r $DEV_DIR/* device/infinix/KE7/ 2>/dev/null; cp $DEV_DIR/BoardConfig.mk device/infinix/KE7/ 2>/dev/null; true
           
-          echo "=== الملفات اللي عندك ==="
-          ls device/infinix/KE7/
-          
-          # لو الملف اسمه omni بدل twrp ننسخه
-          if [ -f device/infinix/KE7/omni_KE7.mk ] && [ ! -f device/infinix/KE7/twrp_KE7.mk ]; then
-            cp device/infinix/KE7/omni_KE7.mk device/infinix/KE7/twrp_KE7.mk
+          echo "=== بنكمل الملفات الناقصة ==="
+          # نعمل device.mk لو مش موجود
+          if [ ! -f device/infinix/KE7/device.mk ]; then
+          cat > device/infinix/KE7/device.mk << 'EOF'
+          LOCAL_PATH := device/infinix/KE7
+          PRODUCT_USE_DYNAMIC_PARTITIONS := true
+          EOF
           fi
-          # نعمل AndroidProducts.mk بالعافية
-          echo 'PRODUCT_MAKEFILES := $(LOCAL_DIR)/twrp_KE7.mk
-          COMMON_LUNCH_CHOICES := twrp_KE7-eng' > device/infinix/KE7/AndroidProducts.mk
+          # نعمل twrp_KE7.mk اللي ناقص عندك
+          cat > device/infinix/KE7/twrp_KE7.mk << 'EOF'
+          $(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)
+          $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
+          $(call inherit-product, vendor/twrp/config/common.mk)
+          $(call inherit-product, device/infinix/KE7/device.mk)
+          PRODUCT_DEVICE := KE7
+          PRODUCT_NAME := twrp_KE7
+          PRODUCT_BRAND := Infinix
+          PRODUCT_MODEL := Infinix Hot 10S
+          PRODUCT_MANUFACTURER := infinix
+          EOF
+          
+          cat > device/infinix/KE7/AndroidProducts.mk << 'EOF'
+          PRODUCT_MAKEFILES := $(LOCAL_DIR)/twrp_KE7.mk
+          COMMON_LUNCH_CHOICES := twrp_KE7-eng
+          EOF
           
           grep -q "TW_THEME" device/infinix/KE7/BoardConfig.mk || echo "TW_THEME := portrait_hdpi" >> device/infinix/KE7/BoardConfig.mk
           
+          ls -lh device/infinix/KE7/
           cat device/infinix/KE7/twrp_KE7.mk
-          cat device/infinix/KE7/AndroidProducts.mk
 
           . build/envsetup.sh
           lunch twrp_KE7-eng
